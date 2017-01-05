@@ -6,7 +6,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.LayoutManager;
 import java.net.InetSocketAddress;
-import java.util.List;
 
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
@@ -25,7 +24,8 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
 
-import com.phoenixkahlo.nodenet.proxy.Proxy;
+import com.phoenixkahlo.util.Tuple;
+import com.phoenixkahlo.util.UUID;
 
 public class GUI {
 
@@ -153,38 +153,64 @@ public class GUI {
 	}
 
 	public void start() {
-		
 		frame.pack();
 		frame.setLocationRelativeTo(null);
 		frame.setVisible(true);
 	}
 
-	/**
-	 * Response to refresh button.
-	 */
-	private void refreshRemote() {
+	public void refresh() {
 		SwingUtilities.invokeLater(() -> {
+			// Refresh remote tree
 			remoteTree.setRootVisible(true);
 			
 			while (remoteRoot.getChildCount() > 0)
 				((DefaultTreeModel) remoteTree.getModel()).removeNodeFromParent((MutableTreeNode) remoteRoot.getFirstChild());
 			
-			List<Proxy<Client>> remoteClients = client.getRemote();
-			synchronized (remoteClients) {
-				for (Proxy<Client> client : remoteClients) {
-					String name = client.blocking().getName();
-					System.out.println("found client with name: " + name);
-					DefaultMutableTreeNode node = new DefaultMutableTreeNode(name);
-					//remoteRoot.add(node);
+			synchronized (client.getRemote()) {
+				for (RemoteClientCache cache : client.getRemote()) {
+					DefaultMutableTreeNode node = new DefaultMutableTreeNode(cache.getName());
 					((DefaultTreeModel) remoteTree.getModel()).insertNodeInto(node, remoteRoot, 0);
+					for (Tuple<UUID, String> file : cache.getAvailableFiles()) {
+						((DefaultTreeModel) remoteTree.getModel()).insertNodeInto(new DefaultMutableTreeNode(file.getB()), node, 0);
+					}
 				}
 			}
-			System.out.println("revalidating & repainting");
+			
 			remoteTree.expandRow(0);
 			remoteTree.setRootVisible(false);
+			// Display changes
 			frame.revalidate();
 			frame.repaint();
 		});
+	}
+	
+	/**
+	 * Response to refresh button.
+	 */
+	private void refreshRemote() {
+		System.out.println("no");
+		//SwingUtilities.invokeLater(() -> {
+		//	remoteTree.setRootVisible(true);
+		//	
+		//	while (remoteRoot.getChildCount() > 0)
+		//		((DefaultTreeModel) remoteTree.getModel()).removeNodeFromParent((MutableTreeNode) remoteRoot.getFirstChild());
+		//	
+		//	List<Proxy<Client>> remoteClients = client.getRemote();
+		//	synchronized (remoteClients) {
+		//		for (Proxy<Client> client : remoteClients) {
+		//			String name = client.blocking().getName();
+		//			System.out.println("found client with name: " + name);
+		//			DefaultMutableTreeNode node = new DefaultMutableTreeNode(name);
+		//			//remoteRoot.add(node);
+		//			((DefaultTreeModel) remoteTree.getModel()).insertNodeInto(node, remoteRoot, 0);
+		//		}
+		//	}
+		//	System.out.println("revalidating & repainting");
+		//	remoteTree.expandRow(0);
+		//	remoteTree.setRootVisible(false);
+		//	frame.revalidate();
+		//	frame.repaint();
+		//});
 	}
 
 	/**
