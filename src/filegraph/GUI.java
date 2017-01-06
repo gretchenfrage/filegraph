@@ -11,6 +11,7 @@ import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -67,7 +68,7 @@ public class GUI {
 		panel.add(availableFilesView);
 
 		JButton provide = new JButton("Provide");
-		provide.addActionListener(event -> provideFile());
+		provide.addActionListener(event -> provideButton());
 		panel.add(provide);
 
 		panel.setPreferredSize(new Dimension(300, 500));
@@ -79,6 +80,10 @@ public class GUI {
 		LayoutManager layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
 		panel.setLayout(layout);
 
+		JButton connect = new JButton("Connect");
+		connect.addActionListener(event -> connectButton());
+		panel.add(connect);
+		
 		panel.add(makeLabel("Remote Clients:"));
 
 		remoteRoot = new DefaultMutableTreeNode();
@@ -88,21 +93,19 @@ public class GUI {
 		JScrollPane remoteTreeView = new JScrollPane(remoteTree);
 		panel.add(remoteTreeView);
 
-		JButton refresh = new JButton("Refresh");
-		refresh.addActionListener(event -> refreshRemote());
-		panel.add(refresh);
+		JButton download = new JButton("Download");
+		download.addActionListener(event -> downloadButton());
+		panel.add(download);
 
 		panel.setPreferredSize(new Dimension(300, 500));
 		return panel;
 	}
-
+	
 	private Component makeSection3() {
 		JPanel panel = new JPanel();
 		LayoutManager layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
 		panel.setLayout(layout);
-
-		panel.add(makeLabel("Connect To:"));
-		panel.add(makeOutreachPanel());
+ 
 
 		panel.add(makeLabel("Downloads in Progress:"));
 
@@ -115,33 +118,6 @@ public class GUI {
 		panel.add(progressingDownloadsView);
 
 		panel.setPreferredSize(new Dimension(300, 500));
-		return panel;
-	}
-
-	private Component makeOutreachPanel() {
-		JPanel panel = new JPanel();
-		LayoutManager layout = new BoxLayout(panel, BoxLayout.X_AXIS);
-		panel.setLayout(layout);
-
-		JTextField ipField = new JTextField();
-		JTextField portField = new JTextField();
-		Icon submitIcon = new ImageIcon(getClass().getResource("/assets/connect.png"));
-		JButton submitButton = new JButton(submitIcon);
-
-		final int PORT_WIDTH = 50;
-		final int FIELD_HEIGHT = submitButton.getPreferredSize().height;
-
-		ipField.setMaximumSize(new Dimension(Integer.MAX_VALUE, FIELD_HEIGHT));
-		portField.setMaximumSize(new Dimension(PORT_WIDTH, FIELD_HEIGHT));
-		portField.setPreferredSize(new Dimension(PORT_WIDTH, FIELD_HEIGHT));
-
-		panel.add(ipField);
-		panel.add(makeLabel(":"));
-		panel.add(portField);
-		panel.add(submitButton);
-
-		submitButton.addActionListener(event -> connect(ipField.getText(), portField.getText()));
-
 		return panel;
 	}
 	
@@ -183,52 +159,8 @@ public class GUI {
 			frame.repaint();
 		});
 	}
-	
-	/**
-	 * Response to refresh button.
-	 */
-	private void refreshRemote() {
-		System.out.println("no");
-		//SwingUtilities.invokeLater(() -> {
-		//	remoteTree.setRootVisible(true);
-		//	
-		//	while (remoteRoot.getChildCount() > 0)
-		//		((DefaultTreeModel) remoteTree.getModel()).removeNodeFromParent((MutableTreeNode) remoteRoot.getFirstChild());
-		//	
-		//	List<Proxy<Client>> remoteClients = client.getRemote();
-		//	synchronized (remoteClients) {
-		//		for (Proxy<Client> client : remoteClients) {
-		//			String name = client.blocking().getName();
-		//			System.out.println("found client with name: " + name);
-		//			DefaultMutableTreeNode node = new DefaultMutableTreeNode(name);
-		//			//remoteRoot.add(node);
-		//			((DefaultTreeModel) remoteTree.getModel()).insertNodeInto(node, remoteRoot, 0);
-		//		}
-		//	}
-		//	System.out.println("revalidating & repainting");
-		//	remoteTree.expandRow(0);
-		//	remoteTree.setRootVisible(false);
-		//	frame.revalidate();
-		//	frame.repaint();
-		//});
-	}
 
-	/**
-	 * Response to the connect button.
-	 */
-	private void connect(String address, String port) {
-		try {
-			InetSocketAddress socketAddress = new InetSocketAddress(address, Integer.parseInt(port));
-			client.connect(socketAddress);
-		} catch (Exception e) {
-		}
-
-	}
-
-	/**
-	 * Response to the provide button.
-	 */
-	private void provideFile() {
+	private void provideButton() {
 		JFileChooser fileChooser = new JFileChooser();
 		int result = fileChooser.showOpenDialog(frame);
 		if (result == JFileChooser.APPROVE_OPTION) {
@@ -236,4 +168,40 @@ public class GUI {
 		}
 	}
 
+	private void connectButton() {
+		JDialog dialog = new JDialog(frame);
+		dialog.setContentPane(makeConnectPane());
+		dialog.setSize(500, 200);
+		dialog.setLocationRelativeTo(frame);
+		dialog.setVisible(true);
+	}
+	
+	private JPanel makeConnectPane() {
+		JPanel panel = new JPanel();
+		LayoutManager layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
+		panel.setLayout(layout);
+		
+		JPanel addressPanel = new JPanel();
+		LayoutManager addressPanelLayout = new BoxLayout(addressPanel, BoxLayout.X_AXIS);
+		addressPanel.setLayout(addressPanelLayout);
+		
+		JTextField address = new JTextField();
+		address.setMaximumSize(new Dimension(Integer.MAX_VALUE, address.getPreferredSize().height));
+		addressPanel.add(address);
+		JTextField port = new JTextField();
+		port.setMaximumSize(new Dimension(100, port.getPreferredSize().height));
+		addressPanel.add(port);
+		
+		panel.add(addressPanel);
+
+		JButton connect = new JButton("Connect");
+		panel.add(connect);
+		
+		return panel;
+	}
+	
+	private void downloadButton() {
+		
+	}
+	
 }

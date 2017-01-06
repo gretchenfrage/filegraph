@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalInt;
-import java.util.Scanner;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.phoenixkahlo.nodenet.BasicLocalNode;
 import com.phoenixkahlo.nodenet.LocalNode;
@@ -18,10 +18,7 @@ import com.phoenixkahlo.util.UUID;
 public class LocalClient implements Client {
 
 	public static void main(String[] args) throws SocketException {
-		try (Scanner scanner = new Scanner(System.in)) {
-			System.out.print("provide port:\n> ");
-			new LocalClient(OptionalInt.of(scanner.nextInt()));
-		}
+		new LocalClient(OptionalInt.of(ThreadLocalRandom.current().nextInt(1000) + 3000));
 	}
 
 	private GUI gui;
@@ -31,7 +28,8 @@ public class LocalClient implements Client {
 
 	@SuppressWarnings("unchecked")
 	public LocalClient(OptionalInt port) throws SocketException {
-		gui = new GUI(this, port.toString());
+		gui = new GUI(this, port.isPresent() ? "- port " + Integer.toString(port.getAsInt()) : "");
+		
 
 		availableFiles = new ArrayList<>();
 		availableFiles.add(new Tuple<UUID, String>(new UUID(), "it's fun to stay at the"));
