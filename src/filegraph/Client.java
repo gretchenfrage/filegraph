@@ -2,18 +2,14 @@ package filegraph;
 
 import java.util.List;
 
-import com.phoenixkahlo.util.Tuple;
-import com.phoenixkahlo.util.UUID;
+import com.phoenixkahlo.nodenet.proxy.Proxy;
 
 public interface Client {
 
 	String getName();
 	
-	List<Tuple<UUID, String>> getAvailableFiles();
+	List<Proxy<AvailableFile>> getAvailableFiles();
 	
-	/**
-	 * Refresh all RemoteClientCaches, then refresh the GUI.
-	 */
 	void refresh();
 	
 }

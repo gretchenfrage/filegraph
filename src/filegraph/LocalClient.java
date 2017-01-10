@@ -6,11 +6,14 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 import com.phoenixkahlo.nodenet.BasicLocalNode;
 import com.phoenixkahlo.nodenet.LocalNode;
+import com.phoenixkahlo.nodenet.Node;
 import com.phoenixkahlo.nodenet.proxy.Proxy;
 import com.phoenixkahlo.util.Tuple;
 import com.phoenixkahlo.util.UUID;
@@ -22,34 +25,26 @@ public class LocalClient implements Client {
 	}
 
 	private GUI gui;
-	private List<Tuple<UUID, String>> availableFiles;
 	private LocalNode network;
-	private List<RemoteClientCache> remote = Collections.synchronizedList(new ArrayList<>());
+	private List<AvailableFile> availableFiles = Collections.synchronizedList(new ArrayList<>());
+	private List<Proxy<Client>> remote = Collections.synchronizedList(new ArrayList<>());
 
 	@SuppressWarnings("unchecked")
 	public LocalClient(OptionalInt port) throws SocketException {
 		gui = new GUI(this, port.isPresent() ? "- port " + Integer.toString(port.getAsInt()) : "");
-		
-
-		availableFiles = new ArrayList<>();
-		availableFiles.add(new Tuple<UUID, String>(new UUID(), "it's fun to stay at the"));
-		availableFiles.add(new Tuple<UUID, String>(new UUID(), "Y"));
-		availableFiles.add(new Tuple<UUID, String>(new UUID(), "M"));
-		availableFiles.add(new Tuple<UUID, String>(new UUID(), "C"));
-		availableFiles.add(new Tuple<UUID, String>(new UUID(), "A"));
 
 		if (port.isPresent())
 			network = new BasicLocalNode(port.getAsInt());
 		else
 			network = new BasicLocalNode();
-		
+
 		network.addSerializer(Tuple.serializer(network.getSerializer()), 1);
-		
+
 		network.listenForJoin(node -> {
 			try {
 				node.send(network.makeProxy(LocalClient.this, Client.class));
-				remote.add(new RemoteClientCache(node.receive(Proxy.class).cast(Client.class), remote::remove));
-				refreshAll();
+				remote.add(node.receive(Proxy.class).cast(Client.class));
+				refresh();
 			} catch (Exception e) {
 			}
 		});
@@ -62,22 +57,39 @@ public class LocalClient implements Client {
 	 * Called by GUI.
 	 */
 	public void provideFile(File file) {
-
+		availableFiles.add(new LocalAvailableFile(file, new UUID()));
+		refreshAll();
+		gui.refreshLocal();
 	}
 
 	/**
 	 * Called by GUI.
 	 */
-	public void connect(InetSocketAddress address) {
-		new Thread(() -> {
-			network.connect(address);
-		}).start();
+	public void rescindFile(UUID id) {
+		availableFiles.removeIf(file -> file.getID().equals(id));
+		refreshAll();
+		gui.refreshLocal();
 	}
-	
+
 	/**
 	 * Called by GUI.
 	 */
-	public List<RemoteClientCache> getRemote() {
+	public String connect(String address, String port) {
+		try {
+			Optional<Node> connection = network.connect(new InetSocketAddress(address, Integer.parseInt(port)));
+			if (connection.isPresent())
+				return "Successful";
+			else
+				return "Failed";
+		} catch (Exception e) {
+			return "Failed with exception: " + e;
+		}
+	}
+
+	/**
+	 * Called by GUI.
+	 */
+	public List<Proxy<Client>> getRemote() {
 		return remote;
 	}
 
@@ -90,29 +102,37 @@ public class LocalClient implements Client {
 	}
 
 	/**
-	 * Called by remote and GUi.
+	 * Called by remote and GUI.
 	 */
 	@Override
-	public List<Tuple<UUID, String>> getAvailableFiles() {
-		return availableFiles;
+	public List<Proxy<AvailableFile>> getAvailableFiles() {
+		synchronized (availableFiles) {
+			return availableFiles.stream().map(file -> network.makeProxy(file, AvailableFile.class))
+					.collect(Collectors.toList());
+		}
 	}
 
 	/**
 	 * Refresh all clients, including self.
 	 */
 	public void refreshAll() {
+		remote.forEach(proxy -> proxy.unblocking(false).refresh());
 		refresh();
-		remote.forEach(RemoteClientCache::refreshRemote);
 	}
 
+	/**
+	 * Called by remote.
+	 */
 	@Override
 	public void refresh() {
-		synchronized (remote) {
-			for (int i = remote.size() - 1; i >= 0; i--) {
-				remote.get(i).refreshCache();
-			}
-		}
-		gui.refresh();
+		gui.refreshRemote();
+	}
+
+	/**
+	 * Called by GUI.
+	 */
+	public void shutdown() {
+		network.disconnect();
 	}
 
 }
