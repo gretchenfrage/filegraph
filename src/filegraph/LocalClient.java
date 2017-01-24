@@ -1,6 +1,8 @@
 package filegraph;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import com.phoenixkahlo.nodenet.BasicLocalNode;
 import com.phoenixkahlo.nodenet.LocalNode;
 import com.phoenixkahlo.nodenet.Node;
 import com.phoenixkahlo.nodenet.proxy.Proxy;
+import com.phoenixkahlo.nodenet.serialization.ThrowableSerializer;
 import com.phoenixkahlo.util.Tuple;
 import com.phoenixkahlo.util.UUID;
 
@@ -25,10 +28,10 @@ public class LocalClient implements Client {
 	}
 
 	private GUI gui;
-	private LocalNode network;
+	private LocalNode network; 
 	private List<AvailableFile> availableFiles = Collections.synchronizedList(new ArrayList<>());
 	private List<Proxy<Client>> remote = Collections.synchronizedList(new ArrayList<>());
-
+	
 	@SuppressWarnings("unchecked")
 	public LocalClient(OptionalInt port) throws SocketException {
 		gui = new GUI(this, port.isPresent() ? "- port " + Integer.toString(port.getAsInt()) : "");
@@ -39,6 +42,9 @@ public class LocalClient implements Client {
 			network = new BasicLocalNode();
 
 		network.addSerializer(Tuple.serializer(network.getSerializer()), 1);
+		network.addSerializer(IndexRange.serializer(network.getSerializer()), 2);
+		network.addSerializer(new ThrowableSerializer<>(IOException.class, IOException::new), 3);
+		network.addSerializer(new ThrowableSerializer<>(IllegalArgumentException.class, IllegalArgumentException::new), 4);
 
 		network.listenForJoin(node -> {
 			try {
@@ -57,9 +63,13 @@ public class LocalClient implements Client {
 	 * Called by GUI.
 	 */
 	public void provideFile(File file) {
-		availableFiles.add(new LocalAvailableFile(file, new UUID()));
-		refreshAll();
-		gui.refreshLocal();
+		try {
+			availableFiles.add(new LocalAvailableFile(file, new UUID()));
+			refreshAll();
+			gui.refreshLocal();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -133,6 +143,26 @@ public class LocalClient implements Client {
 	 */
 	public void shutdown() {
 		network.disconnect();
+	}
+
+	/**
+	 * Called by remote.
+	 */
+	@Override
+	public void startDownloadService(Proxy<AvailableFile> upload, Proxy<FileReceiver> download) {
+		new TransferService(upload, download).start();
+	}
+	
+	public void triggerDownload(Proxy<AvailableFile> upload, FileReceiver download) {
+		synchronized (remote) {
+			for (Proxy<Client> client : remote) {
+				if (client.getSource().equals(upload.getSource())) {
+					client.blocking().startDownloadService(upload, network.makeProxy(download, FileReceiver.class));
+					
+					return;
+				}
+			}
+		}
 	}
 
 }

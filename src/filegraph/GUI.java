@@ -9,6 +9,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
+import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
 import com.phoenixkahlo.nodenet.proxy.Proxy;
@@ -52,8 +54,8 @@ public class GUI {
 	private volatile Consumer<UUID> localSelector = id -> {
 	};
 
-	private volatile Runnable downloadService = () -> {
-	};
+	private Map<TreeNode, Proxy<AvailableFile>> remoteFileLookup = Collections.synchronizedMap(new HashMap<>());
+	private volatile Proxy<AvailableFile> selectedRemoteFile;
 
 	public GUI(LocalClient client, String label) {
 		this.client = client;
@@ -114,11 +116,18 @@ public class GUI {
 
 		remoteTree = new JTree(remoteRoot);
 		remoteTree.setRootVisible(false);
+		remoteTree.addTreeSelectionListener(event -> {
+			selectedRemoteFile = remoteFileLookup.get(event.getPath().getLastPathComponent());
+		});
 		JScrollPane remoteTreeView = new JScrollPane(remoteTree);
 		panel.add(remoteTreeView);
 
 		JButton download = new JButton("Download");
-		download.addActionListener(event -> downloadButton());
+		download.addActionListener(event -> {
+			new Thread(() -> {
+				downloadButton();
+			}).start();
+		});
 		panel.add(download);
 
 		JButton connect = new JButton("Connect");
@@ -175,6 +184,9 @@ public class GUI {
 				((DefaultTreeModel) remoteTree.getModel())
 						.removeNodeFromParent((MutableTreeNode) remoteRoot.getFirstChild());
 
+			while (remoteFileLookup.size() > 0) {
+				remoteFileLookup.remove(remoteFileLookup.keySet().iterator().next());
+			}
 			client.getRemote().forEach(proxy -> {
 				try {
 					DefaultMutableTreeNode clientNode = new DefaultMutableTreeNode(proxy.blocking().getName());
@@ -182,7 +194,7 @@ public class GUI {
 					for (Proxy<AvailableFile> file : proxy.blocking().getAvailableFiles()) {
 						try {
 							DefaultMutableTreeNode fileNode = new DefaultMutableTreeNode(file.blocking().getName());
-							
+							remoteFileLookup.put(fileNode, file);
 							((DefaultTreeModel) remoteTree.getModel()).insertNodeInto(fileNode, clientNode, 0);
 						} catch (Exception e) {
 						}
@@ -253,6 +265,21 @@ public class GUI {
 		}
 	}
 
+	private void downloadButton() {
+		Proxy<AvailableFile> download = selectedRemoteFile;
+		JFileChooser fileChooser = new JFileChooser();
+		int result = fileChooser.showSaveDialog(frame);
+		if (result == JFileChooser.APPROVE_OPTION) {
+			try {
+				FileReceiver receiver = new LocalFileReceiver(fileChooser.getSelectedFile(), download,
+						() -> System.out.println("success"), () -> System.out.println("failure"));
+			} catch (IOException | DownloadException e) {
+				System.err.println("Exception in download attempt");
+				e.printStackTrace();
+			}
+		}
+	}
+
 	private void connectButton() {
 		JDialog dialog = new JDialog(frame, "Connect");
 		BiConsumer<String, String> connectCallback = (address, port) -> {
@@ -307,10 +334,6 @@ public class GUI {
 		panel.add(connect);
 
 		return panel;
-	}
-
-	private void downloadButton() {
-
 	}
 
 	private void rescindButton() {

@@ -12,4 +12,6 @@ public interface Client {
 	
 	void refresh();
 	
+	void startDownloadService(Proxy<AvailableFile> upload, Proxy<FileReceiver> download);
+	
 }
